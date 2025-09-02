@@ -1,0 +1,50 @@
+# Binários gerados
+/bin/
+/build/
+/*.exe
+/*.out
+/*.test
+/*.log
+
+# Diretórios de cache do Go
+/.vendor/
+
+# Arquivos do editor (Exemplo para VSCode)
+.vscode/
+
+# Arquivos de compilação do Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Arquivos de log
+*.log
+
+# Arquivos temporários
+*.tmp
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Arquivos de configuração local (como variáveis de ambiente)
+.env
+.env.local
+
+# Diretórios de dependências de terceiros
+/node_modules/
+/bower_components/
+
+# Arquivos de testes temporários
+*.test
+
+# Arquivos gerados durante o processo de build
+*.o
+*.a
+
+# Arquivos gerados pelo editor de texto
+.idea/
+*.swp
+*.swo
