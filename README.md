@@ -1,7 +1,7 @@
 # Estrutura de Diretórios da Plataforma de Reforço Educacional
 
-Abaixo está a estrutura de diretórios do projeto:
-
+## Abaixo está a estrutura de diretórios do projeto:
+```markdown
 /educational-reinforcement-platform
 │
 ├── /cmd/               # Entrypoints da aplicação
@@ -79,3 +79,4 @@ Abaixo está a estrutura de diretórios do projeto:
 ├── go.mod
 ├── go.sum
 └── README.md
+```
