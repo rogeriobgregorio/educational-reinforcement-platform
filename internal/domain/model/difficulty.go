@@ -19,7 +19,8 @@ const (
 	VeryHard
 )
 
-// ValidateDifficulty verifica se o nível de dificuldade é válido
+// ValidateDifficulty verifica se o nível de dificuldade é válido,
+// em caso de erro retorna ErrInvalidDifficulty
 func ValidateDifficulty(difficulty Difficulty) (Difficulty, error) {
 	if difficulty < VeryEasy || difficulty > VeryHard {
 		return Difficulty(0), fmt.Errorf(
@@ -56,7 +57,8 @@ func (d *Difficulty) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON implementa a interface json.Unmarshaler para customizar a
-// desserialização do nível de dificuldade
+// desserialização do nível de dificuldade,
+// em caso de erro retorna ErrInvalidDifficulty
 func (d *Difficulty) UnmarshalJSON(data []byte) error {
 	var difficultyStr string
 	if err := json.Unmarshal(data, &difficultyStr); err != nil {
@@ -92,7 +94,8 @@ func (d Difficulty) ToInt() int {
 	return int(d)
 }
 
-// FromInt converte um valor inteiro para o nível de dificuldade correspondente
+// FromInt converte um valor inteiro para o nível de dificuldade correspondente,
+// em caso de erro retorna ErrInvalidDifficulty
 func FromInt(value int) (Difficulty, error) {
 	difficulty := Difficulty(value)
 	return ValidateDifficulty(difficulty)

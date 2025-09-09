@@ -24,7 +24,8 @@ type Option struct {
 	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
-// NewOption cria uma nova instância de Option
+// NewOption cria uma nova instância de Option, 
+// em caso de erro retorna o erro correspondente
 func NewOption(questionID, content string, isCorrect bool) (*Option, error) {
 	const newOptionErrorFmt = "[NewOption] ERROR: %w"
 
@@ -55,7 +56,8 @@ func NewOption(questionID, content string, isCorrect bool) (*Option, error) {
 	}, nil
 }
 
-// ValidateOptionContent verifica se o conteúdo da opção é válido
+// ValidateOptionContent verifica se o conteúdo da opção é válido,
+// em caso de erro retorna ErrEmptyOptionContent
 func ValidateOptionContent(content string) (string, error) {
 	if len(strings.TrimSpace(content)) == 0 {
 		return "", fmt.Errorf("[ValidateOptionContent] ERROR: %w", ErrEmptyOptionContent)
@@ -63,7 +65,8 @@ func ValidateOptionContent(content string) (string, error) {
 	return content, nil
 }
 
-// ValidateQuestionID verifica se o ID da pergunta é válido
+// ValidateQuestionID verifica se o ID da pergunta é válido,
+// em caso de erro retorna ErrEmptyQuestionID
 func ValidateQuestionID(questionID string) (string, error) {
 	if len(strings.TrimSpace(questionID)) == 0 {
 		return "", fmt.Errorf("[ValidateQuestionID] ERROR: %w", ErrEmptyQuestionID)
@@ -71,7 +74,8 @@ func ValidateQuestionID(questionID string) (string, error) {
 	return questionID, nil
 }
 
-// ChangeContent altera o conteúdo da opção
+// ChangeContent altera o conteúdo da opção,
+// em caso de erro retorna ErrEmptyOptionContent
 func (o *Option) ChangeContent(newContent string) error {
 	validContent, err := ValidateOptionContent(newContent)
 	if err != nil {

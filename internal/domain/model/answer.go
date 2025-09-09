@@ -25,7 +25,8 @@ type Answer struct {
 	CreatedAt  time.Time `json:"createdAt"`
 }
 
-// NewAnswer cria uma nova instância de Answer
+// NewAnswer cria uma nova instância de Answer,
+// em caso de erro retorna o erro correspondente
 func NewAnswer(userID, questionID, optionID string, isCorrect bool) (*Answer, error) {
 	validId, err := pkg.GenerateUUID()
 	if err != nil {
@@ -46,7 +47,9 @@ func NewAnswer(userID, questionID, optionID string, isCorrect bool) (*Answer, er
 	}, nil
 }
 
-// ValidateAnswerIDs verifica se os IDs são válidos
+// ValidateAnswerIDs verifica se os IDs são válidos,
+// em caso de erro retorna ErrUserIDEmpty, ErrQuestionIDEmpty
+// ou ErrOptionIDEmpty dentro de ErrInvalidAnswerData
 func ValidateAnswerIDs(userID, questionID, optionID string) error {
 	var errs []error
 

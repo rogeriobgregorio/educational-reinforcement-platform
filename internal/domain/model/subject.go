@@ -19,7 +19,8 @@ type Subject struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// NewSubject cria uma nova instância de Subject
+// NewSubject cria uma nova instância de Subject,
+// em caso de erro retorna o erro correspondente
 func NewSubject(name string) (*Subject, error) {
 	const newSubjectErrorFmt = "[NewSubject] ERROR: %w"
 
@@ -43,7 +44,8 @@ func NewSubject(name string) (*Subject, error) {
 	}, nil
 }
 
-// ValidateSubjectName verifica se o nome da disciplina é válido
+// ValidateSubjectName verifica se o nome da disciplina é válido,
+// em caso de erro retorna ErrInvalidSubjectName
 func ValidateSubjectName(name string) (string, error) {
 	if len(strings.TrimSpace(name)) < 3 {
 		return "", fmt.Errorf(
@@ -55,7 +57,8 @@ func ValidateSubjectName(name string) (string, error) {
 	return name, nil
 }
 
-// UpdateName atualiza o nome da disciplina
+// UpdateName atualiza o nome da disciplina,
+// em caso de erro retorna ErrInvalidSubjectName
 func (s *Subject) UpdateName(newName string) error {
 	validName, err := ValidateSubjectName(newName)
 	if err != nil {
