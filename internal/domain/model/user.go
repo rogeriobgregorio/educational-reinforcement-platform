@@ -40,7 +40,8 @@ type User struct {
 	UpdatedAt    time.Time  `json:"updatedAt"`
 }
 
-// NewUser cria um novo usuário com os dados fornecidos
+// NewUser cria um novo usuário com os dados fornecidos,
+// em caso de erro retorna o erro correspondente
 func NewUser(name, email, passwordHash string, role Role, difficulty Difficulty) (*User, error) {
 	const newUserErrorFmt = "[NewUser] ERROR: %w"
 
@@ -84,7 +85,8 @@ func NewUser(name, email, passwordHash string, role Role, difficulty Difficulty)
 	}, nil
 }
 
-// ValidateUserName verifica se o nome é válido
+// ValidateUserName verifica se o nome é válido,
+// em caso de erro retorna ErrInvalidName
 func ValidateUserName(name string) (string, error) {
 	if len(strings.TrimSpace(name)) < 3 {
 		return "", fmt.Errorf(
@@ -96,7 +98,8 @@ func ValidateUserName(name string) (string, error) {
 	return name, nil
 }
 
-// ValidateEmail verifica se o email está em um formato válido
+// ValidateEmail verifica se o email está em um formato válido,
+// em caso de erro retorna ErrEmptyEmail ou ErrInvalidEmail
 func ValidateEmail(email string) (string, error) {
 	email = strings.TrimSpace(email)
 	email = strings.ToLower(email)
@@ -121,7 +124,8 @@ func ValidateEmail(email string) (string, error) {
 	return email, nil
 }
 
-// ValidateRole verifica se o papel é válido
+// ValidateRole verifica se o papel é válido,
+// em caso de erro retorna ErrInvalidRole ou ErrEmptyRole
 func ValidateRole(userRole string) (Role, error) {
 	userRole = strings.TrimSpace(strings.ToUpper(userRole))
 	if len(strings.TrimSpace(userRole)) == 0 {
@@ -146,7 +150,7 @@ func ValidateRole(userRole string) (Role, error) {
 	}
 }
 
-// UpdateName atualiza o nome do usuário
+// UpdateName atualiza o nome do usuário - em caso de erro retorna ErrInvalidName
 func (u *User) UpdateName(name string) error {
 	validName, err := ValidateUserName(name)
 	if err != nil {
@@ -157,7 +161,7 @@ func (u *User) UpdateName(name string) error {
 	return nil
 }
 
-// UpdateEmail atualiza o email do usuário
+// UpdateEmail atualiza o email do usuário - em caso de erro retorna ErrEmptyEmail ou ErrInvalidEmail
 func (u *User) UpdateEmail(email string) error {
 	validEmail, err := ValidateEmail(email)
 	if err != nil {
@@ -168,7 +172,7 @@ func (u *User) UpdateEmail(email string) error {
 	return nil
 }
 
-// UpdateRole atualiza o papel do usuário
+// UpdateRole atualiza o papel do usuário - em caso de erro retorna ErrInvalidRole ou ErrEmptyRole
 func (u *User) UpdateRole(role Role) error {
 	validRole, err := ValidateRole(string(role))
 	if err != nil {
@@ -179,7 +183,7 @@ func (u *User) UpdateRole(role Role) error {
 	return nil
 }
 
-// UpdateDifficulty atualiza a dificuldade do usuário
+// UpdateDifficulty atualiza a dificuldade do usuário - em caso de erro retorna ErrInvalidDifficulty
 func (u *User) UpdateDifficulty(difficulty Difficulty) error {
 	validDifficulty, err := ValidateDifficulty(difficulty)
 	if err != nil {

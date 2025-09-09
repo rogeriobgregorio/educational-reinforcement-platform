@@ -37,7 +37,8 @@ type Performance struct {
 	CalculatedAt time.Time `json:"calculatedAt"`
 }
 
-// NewPerformance cria uma nova instância de Performance
+// NewPerformance cria uma nova instância de Performance,
+// em caso de erro retorna o erro correspondente
 func NewPerformance(userID, subjectID string, period Period, correct, incorrect int) (*Performance, error) {
 	const NewPerformanceErrorFmt = "[NewPerformance] ERROR: %w"
 
@@ -76,7 +77,8 @@ func NewPerformance(userID, subjectID string, period Period, correct, incorrect 
 	}, nil
 }
 
-// ValidatePerformanceIds verifica se os IDs são válidos
+// ValidatePerformanceIds verifica se os IDs são válidos,
+// em caso de erro retorna ErrUserIDEmpty ou ErrSubjectIDEmpty
 func ValidatePerformanceIds(userID, subjectID string) error {
 	var errs []error
 	if len(strings.TrimSpace(userID)) == 0 {
@@ -97,7 +99,8 @@ func ValidatePerformanceIds(userID, subjectID string) error {
 	return nil
 }
 
-// ValidatePeriod verifica se o período é válido
+// ValidatePeriod verifica se o período é válido,
+// em caso de erro retorna ErrInvalidPeriod
 func ValidatePeriod(period Period) (Period, error) {
 	switch period {
 	case PeriodDaily, PeriodWeekly, PeriodMonthly, PeriodYearly:
@@ -111,7 +114,8 @@ func ValidatePeriod(period Period) (Period, error) {
 	}
 }
 
-// ValidatePositiveCounts verifica se os contadores de acertos e erros são não negativos
+// ValidatePositiveCounts verifica se os contadores de acertos e erros são não negativos,
+// em caso de erro retorna ErrInvalidCounter
 func (p *Performance) ValidatePositiveCounts(count int) (int, error) {
 	if count < 0 {
 		return 0, fmt.Errorf(
@@ -123,7 +127,8 @@ func (p *Performance) ValidatePositiveCounts(count int) (int, error) {
 	return count, nil
 }
 
-// UpdateCounts atualiza os contadores de acertos e erros
+// UpdateCounts atualiza os contadores de acertos e erros,
+// em caso de erro retorna ErrInvalidCounter
 func (p *Performance) UpdateCounts(correct, incorrect *int) error {
 	if correct != nil {
 		validCorrect, err := p.ValidatePositiveCounts(*correct)

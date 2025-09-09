@@ -31,7 +31,8 @@ type Question struct {
 	UpdatedAt  time.Time  `json:"updatedAt"`
 }
 
-// NewQuestion cria uma nova instância de Question
+// NewQuestion cria uma nova instância de Question,
+// em caso de erro retorna o erro correspondente
 func NewQuestion(subjectID, content string, difficulty Difficulty, options []Option) (*Question, error) {
 	const newQuestionErrorFmt = "[NewQuestion] ERROR: %w"
 
@@ -74,6 +75,7 @@ func NewQuestion(subjectID, content string, difficulty Difficulty, options []Opt
 }
 
 // ValidateSubjectID verifica se o ID do assunto é válido
+// em caso de erro retorna ErrEmptySubjectID
 func ValidateSubjectID(subjectID string) (string, error) {
 	if len(strings.TrimSpace(subjectID)) == 0 {
 		return "", fmt.Errorf("[ValidateSubjectID] ERROR: %w", ErrEmptySubjectID)
@@ -82,6 +84,7 @@ func ValidateSubjectID(subjectID string) (string, error) {
 }
 
 // ValidateQuestionContent verifica se o conteúdo da pergunta é válido
+// em caso de erro retorna ErrEmptyQuestionContent
 func ValidateQuestionContent(content string) (string, error) {
 	if len(strings.TrimSpace(content)) == 0 {
 		return "", fmt.Errorf("[ValidateQuestionContent] ERROR: %w", ErrEmptyQuestionContent)
@@ -90,6 +93,7 @@ func ValidateQuestionContent(content string) (string, error) {
 }
 
 // ValidateOptions verifica se a lista de opções é válida
+// em caso de erro retorna ErrQuantityOptions ou ErrInvalidCorrectOptions
 func ValidateOptions(options []Option, difficulty Difficulty) ([]Option, error) {
 	if len(options) < int(VeryEasy) || len(options) > int(difficulty) {
 		return nil, fmt.Errorf(
@@ -114,7 +118,8 @@ func ValidateOptions(options []Option, difficulty Difficulty) ([]Option, error) 
 	return options, nil
 }
 
-// UpdateContent altera o conteúdo da pergunta
+// UpdateContent altera o conteúdo da pergunta,
+// em caso de erro retorna ErrEmptyQuestionContent
 func (q *Question) UpdateContent(newContent string) error {
 	validContent, err := ValidateQuestionContent(newContent)
 	if err != nil {
@@ -125,7 +130,8 @@ func (q *Question) UpdateContent(newContent string) error {
 	return nil
 }
 
-// UpdateDifficulty altera a dificuldade da pergunta
+// UpdateDifficulty altera a dificuldade da pergunta,
+// em caso de erro retorna ErrChangeDifficulty
 func (q *Question) UpdateDifficulty(newDifficulty Difficulty) error {
 	validDifficulty, err := ValidateDifficulty(newDifficulty)
 	if err != nil {
@@ -146,7 +152,8 @@ func (q *Question) UpdateDifficulty(newDifficulty Difficulty) error {
 	return nil
 }
 
-// UpdateOptions altera as opções da pergunta
+// UpdateOptions altera as opções da pergunta,
+// em caso de erro retorna ErrQuantityOptions ou ErrInvalidCorrectOptions
 func (q *Question) UpdateOptions(newOptions []Option) error {
 	validOptions, err := ValidateOptions(newOptions, q.Difficulty)
 	if err != nil {
@@ -157,7 +164,9 @@ func (q *Question) UpdateOptions(newOptions []Option) error {
 	return nil
 }
 
-// AddOption adiciona uma nova opção à pergunta
+// AddOption adiciona uma nova opção à pergunta,
+// em caso de erro retorna ErrAddOptionExceedsLimit,
+// ErrQuantityOptions ou ErrInvalidCorrectOptions
 func (q *Question) AddOption(option Option) error {
 	if len(q.Options) >= int(q.Difficulty) {
 		return fmt.Errorf(
@@ -178,7 +187,8 @@ func (q *Question) AddOption(option Option) error {
 	return nil
 }
 
-// RemoveOption remove uma opção da pergunta pelo ID
+// RemoveOption remove uma opção da pergunta pelo ID,
+// em caso de erro retorna ErrRemoveOptionBelowLimit ou ErrOptionNotFound
 func (q *Question) RemoveOption(optionID string) error {
 	if len(q.Options) <= int(VeryEasy) {
 		return fmt.Errorf(
@@ -218,7 +228,8 @@ func (q *Question) RemoveOption(optionID string) error {
 	return nil
 }
 
-// SetCorrectOption define qual opção da pergunta deve ser marcada como correta
+// SetCorrectOption define qual opção da pergunta deve ser marcada como correta,
+// em caso de erro retorna ErrOptionNotFound, ErrQuantityOptions ou ErrInvalidCorrectOptions
 func (q *Question) SetCorrectOption(optionID string) error {
 	found := false
 	now := time.Now()
