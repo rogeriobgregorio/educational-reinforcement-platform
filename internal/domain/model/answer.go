@@ -1,7 +1,6 @@
 package model
 
 import (
-	"educational-reinforcement-platform/pkg"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,10 +8,9 @@ import (
 	"time"
 )
 
+// Erros específicos do modelo Answer
 var (
-	ErrInvalidAnswerData = errors.New("invalid answer data")
-	ErrQuestionIDEmpty   = errors.New("question ID cannot be empty")
-	ErrOptionIDEmpty     = errors.New("option ID cannot be empty")
+	ErrAnswerIDEmpty = errors.New("answer ID cannot be empty")
 )
 
 // Answer representa uma resposta a uma pergunta
@@ -23,63 +21,65 @@ type Answer struct {
 	OptionID   string    `json:"optionId"`
 	IsCorrect  bool      `json:"isCorrect"`
 	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
-// NewAnswer cria uma nova instância de Answer,
-// em caso de erro retorna o erro correspondente
-func NewAnswer(userID, questionID, optionID string, isCorrect bool) (*Answer, error) {
-	validId, err := pkg.GenerateUUID()
-	if err != nil {
-		return nil, fmt.Errorf("[NewAnswer] ERROR: %w", err)
-	}
-
-	if err := ValidateAnswerIDs(userID, questionID, optionID); err != nil {
-		return nil, fmt.Errorf("[NewAnswer] ERROR: %w", err)
-	}
-
-	return &Answer{
-		ID:         validId,
+// NewAnswer cria uma nova instância de Answer.
+//
+// Em caso de erro retorna ValidationError que contém todos os erros encontrados.
+func NewAnswer(id, userID, questionID, optionID string, isCorrect bool) (*Answer, error) {
+	now := time.Now()
+	answer := &Answer{
+		ID:         id,
 		UserID:     userID,
 		QuestionID: questionID,
 		OptionID:   optionID,
 		IsCorrect:  isCorrect,
-		CreatedAt:  time.Now(),
-	}, nil
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+
+	if err := answer.Validate(); err != nil {
+		return nil, err
+	}
+	return answer, nil
 }
 
-// ValidateAnswerIDs verifica se os IDs são válidos,
-// em caso de erro retorna ErrUserIDEmpty, ErrQuestionIDEmpty
-// ou ErrOptionIDEmpty dentro de ErrInvalidAnswerData
-func ValidateAnswerIDs(userID, questionID, optionID string) error {
-	var errs []error
+// Validate verifica se os dados da resposta são válidos.
+//
+// Em caso de erro retorna ValidationError que contém todos os erros encontrados.
+func (a *Answer) Validate() error {
+	ve := &ValidationError{}
 
-	if len(strings.TrimSpace(userID)) == 0 {
-		errs = append(errs, ErrUserIDEmpty)
+	if strings.TrimSpace(a.ID) == "" {
+		ve.Add(ErrAnswerIDEmpty)
 	}
 
-	if len(strings.TrimSpace(questionID)) == 0 {
-		errs = append(errs, ErrQuestionIDEmpty)
+	if strings.TrimSpace(a.UserID) == "" {
+		ve.Add(ErrUserIDEmpty)
 	}
 
-	if len(strings.TrimSpace(optionID)) == 0 {
-		errs = append(errs, ErrOptionIDEmpty)
+	if strings.TrimSpace(a.QuestionID) == "" {
+		ve.Add(ErrQuestionIDEmpty)
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf(
-			"[ValidateAnswerIds] ERROR: %w, %v",
-			ErrInvalidAnswerData,
-			errors.Join(errs...),
-		)
+	if strings.TrimSpace(a.OptionID) == "" {
+		ve.Add(ErrOptionIDEmpty)
+	}
+
+	if ve.HasErrors() {
+		return ve
 	}
 	return nil
 }
 
-// String retorna uma representação em JSON da resposta
+// String retorna uma representação em JSON da resposta.
+//
+// Em caso de erro retorna uma string de erro.
 func (a *Answer) String() string {
 	data, err := json.MarshalIndent(a, "", "  ")
 	if err != nil {
-		return fmt.Sprintf("[Answer.String] ERROR: %v", err)
+		return fmt.Sprintf("[model.Answer.String] ERROR: %v", err)
 	}
 	return string(data)
 }
