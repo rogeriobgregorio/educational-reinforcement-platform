@@ -1,7 +1,6 @@
 package model
 
 import (
-	"educational-reinforcement-platform/pkg"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,7 +8,15 @@ import (
 	"time"
 )
 
-// Period representa o período de tempo para o desempenho
+// Erros específicos do modelo Performance
+var (
+	ErrPerformanceIDEmpty     = errors.New("performance ID cannot be empty")
+	ErrInvalidPerformanceData = errors.New("invalid performance data")
+	ErrInvalidPeriod          = errors.New("period must be one of: daily, weekly, monthly, yearly")
+	ErrInvalidCounter         = errors.New("the counter must be zero or positive")
+)
+
+// Period representa o período de tempo para o desempenho.
 type Period string
 
 const (
@@ -19,14 +26,7 @@ const (
 	PeriodYearly  Period = "yearly"
 )
 
-var (
-	ErrInvalidPerformanceData = errors.New("invalid performance data")
-	ErrInvalidPeriod          = errors.New("period must be one of: daily, weekly, monthly, yearly")
-	ErrInvalidCounter         = errors.New("the counter must be zero or positive")
-	ErrSubjectIDEmpty         = errors.New("subject ID cannot be empty")
-)
-
-// Performance representa o desempenho do usuário em um determinado período
+// Performance representa o desempenho do usuário em um determinado período.
 type Performance struct {
 	ID           string    `json:"id"`
 	UserID       string    `json:"userId"`
@@ -37,120 +37,97 @@ type Performance struct {
 	CalculatedAt time.Time `json:"calculatedAt"`
 }
 
-// NewPerformance cria uma nova instância de Performance,
-// em caso de erro retorna o erro correspondente
-func NewPerformance(userID, subjectID string, period Period, correct, incorrect int) (*Performance, error) {
-	const NewPerformanceErrorFmt = "[NewPerformance] ERROR: %w"
-
-	validId, err := pkg.GenerateUUID()
-	if err != nil {
-		return nil, fmt.Errorf(NewPerformanceErrorFmt, err)
-	}
-
-	if err := ValidatePerformanceIds(userID, subjectID); err != nil {
-		return nil, fmt.Errorf(NewPerformanceErrorFmt, err)
-	}
-
-	validPeriod, err := ValidatePeriod(period)
-	if err != nil {
-		return nil, fmt.Errorf(NewPerformanceErrorFmt, err)
-	}
-
-	validCorrect, err := (&Performance{}).ValidatePositiveCounts(correct)
-	if err != nil {
-		return nil, fmt.Errorf(NewPerformanceErrorFmt, err)
-	}
-
-	validIncorrect, err := (&Performance{}).ValidatePositiveCounts(incorrect)
-	if err != nil {
-		return nil, fmt.Errorf(NewPerformanceErrorFmt, err)
-	}
-
-	return &Performance{
-		ID:           validId,
+// NewPerformance cria uma nova instância de Performance.
+//
+// Em caso de erro retorna ValidationError.
+func NewPerformance(id, userID, subjectID string, period Period, correct, incorrect int) (*Performance, error) {
+	performance := &Performance{
+		ID:           id,
 		UserID:       userID,
 		SubjectID:    subjectID,
-		Period:       validPeriod,
-		Correct:      validCorrect,
-		Incorrect:    validIncorrect,
+		Period:       period,
+		Correct:      correct,
+		Incorrect:    incorrect,
 		CalculatedAt: time.Now(),
-	}, nil
+	}
+
+	if err := performance.Validate(); err != nil {
+		return nil, err
+	}
+	return performance, nil
 }
 
-// ValidatePerformanceIds verifica se os IDs são válidos,
-// em caso de erro retorna ErrUserIDEmpty ou ErrSubjectIDEmpty
-func ValidatePerformanceIds(userID, subjectID string) error {
-	var errs []error
-	if len(strings.TrimSpace(userID)) == 0 {
-		errs = append(errs, ErrUserIDEmpty)
+// Validate verifica se os dados do desempenho são válidos.
+//
+// Em caso de erro retorna ValidationError que contém todos os erros encontrados.
+func (p *Performance) Validate() error {
+	ve := &ValidationError{}
+
+	if strings.TrimSpace(p.ID) == "" {
+		ve.Add(ErrPerformanceIDEmpty)
 	}
 
-	if len(strings.TrimSpace(subjectID)) == 0 {
-		errs = append(errs, ErrSubjectIDEmpty)
+	if strings.TrimSpace(p.UserID) == "" {
+		ve.Add(ErrUserIDEmpty)
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf(
-			"[ValidatePerformanceIds] ERROR: %w, %v",
-			ErrInvalidPerformanceData,
-			errors.Join(errs...),
-		)
+	if strings.TrimSpace(p.SubjectID) == "" {
+		ve.Add(ErrSubjectIDEmpty)
+	}
+
+	if err := validatePeriod(p.Period); err != nil {
+		ve.Add(err)
+	}
+
+	if p.Correct < 0 {
+		ve.Add(ErrInvalidCounter)
+	}
+
+	if p.Incorrect < 0 {
+		ve.Add(ErrInvalidCounter)
+	}
+
+	if ve.HasErrors() {
+		return ve
 	}
 	return nil
 }
 
-// ValidatePeriod verifica se o período é válido,
-// em caso de erro retorna ErrInvalidPeriod
-func ValidatePeriod(period Period) (Period, error) {
+// validatePeriod verifica se o período é válido.
+//
+// Em caso de erro retorna ErrInvalidPeriod
+func validatePeriod(period Period) error {
 	switch period {
 	case PeriodDaily, PeriodWeekly, PeriodMonthly, PeriodYearly:
-		return period, nil
+		return nil
 	default:
-		return Period(""), fmt.Errorf(
-			"[ValidatePeriod] ERROR invalid period(%s): %w",
-			period,
-			ErrInvalidPeriod,
-		)
+		return ErrInvalidPeriod
 	}
 }
 
-// ValidatePositiveCounts verifica se os contadores de acertos e erros são não negativos,
-// em caso de erro retorna ErrInvalidCounter
-func (p *Performance) ValidatePositiveCounts(count int) (int, error) {
-	if count < 0 {
-		return 0, fmt.Errorf(
-			"[ValidatePositiveCounts] ERROR invalid count(%d): %w",
-			count,
-			ErrInvalidCounter,
-		)
-	}
-	return count, nil
-}
-
-// UpdateCounts atualiza os contadores de acertos e erros,
-// em caso de erro retorna ErrInvalidCounter
-func (p *Performance) UpdateCounts(correct, incorrect *int) error {
-	if correct != nil {
-		validCorrect, err := p.ValidatePositiveCounts(*correct)
-		if err != nil {
-			return fmt.Errorf("[UpdateCounts] ERROR: %w", err)
-		}
-		p.Correct = validCorrect
-	}
-
-	if incorrect != nil {
-		validIncorrect, err := p.ValidatePositiveCounts(*incorrect)
-		if err != nil {
-			return fmt.Errorf("[UpdateCounts] ERROR: %w", err)
-		}
-		p.Incorrect = validIncorrect
-	}
-
+// UpdateCorrect incrementa o contador de acertos em 1.
+func (p *Performance) UpdateCorrect() error {
+	p.Correct++
 	p.CalculatedAt = time.Now()
 	return nil
 }
 
-// GetAccuracy calcula a precisão do desempenho
+// UpdateIncorrect incrementa o contador de erros em 1.
+func (p *Performance) UpdateIncorrect() error {
+	p.Incorrect++
+	p.CalculatedAt = time.Now()
+	return nil
+}
+
+// ResetCounters zera os contadores de acertos e erros.
+func (p *Performance) ResetCounters() error {
+	p.Correct = 0
+	p.Incorrect = 0
+	p.CalculatedAt = time.Now()
+	return nil
+}
+
+// GetAccuracy calcula a precisão do desempenho.
 func (p *Performance) GetAccuracy() float64 {
 	total := p.Correct + p.Incorrect
 	if total == 0 {
@@ -168,7 +145,7 @@ func (p *Performance) GetTotalQuestions() int {
 func (p *Performance) String() string {
 	data, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {
-		return fmt.Sprintf("[Performance.String] ERROR: %v", err)
+		return fmt.Sprintf("[model.Performance.String] ERROR: %v", err)
 	}
 	return string(data)
 }
