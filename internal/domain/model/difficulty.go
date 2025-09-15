@@ -6,9 +6,13 @@ import (
 	"fmt"
 )
 
-var ErrInvalidDifficulty = errors.New("difficulty must be between VeryEasy(2) and VeryHard(6)")
+// Erros específicos do modelo Difficulty
+var (
+	ErrInvalidDifficulty = errors.New("difficulty must be between VeryEasy(2) and VeryHard(6)")
+	ErrChangeDifficulty  = errors.New("current options exceed new difficulty")
+)
 
-// Difficulty representa os níveis de dificuldade disponíveis
+// Difficulty representa os níveis de dificuldade disponíveis.
 type Difficulty int
 
 const (
@@ -19,20 +23,17 @@ const (
 	VeryHard
 )
 
-// ValidateDifficulty verifica se o nível de dificuldade é válido,
-// em caso de erro retorna ErrInvalidDifficulty
-func ValidateDifficulty(difficulty Difficulty) (Difficulty, error) {
+// ValidateDifficulty verifica se o nível de dificuldade é válido.
+//
+// Em caso de erro retorna ErrInvalidDifficulty.
+func validateDifficulty(difficulty Difficulty) error {
 	if difficulty < VeryEasy || difficulty > VeryHard {
-		return Difficulty(0), fmt.Errorf(
-			"[ValidateDifficulty] ERROR invalid difficulty(%d): %w",
-			difficulty,
-			ErrInvalidDifficulty,
-		)
+		return ErrInvalidDifficulty
 	}
-	return difficulty, nil
+	return nil
 }
 
-// String retorna a representação em string do nível de dificuldade
+// String retorna a representação em string do nível de dificuldade.
 func (d Difficulty) String() string {
 	switch d {
 	case VeryEasy:
@@ -51,18 +52,19 @@ func (d Difficulty) String() string {
 }
 
 // MarshalJSON implementa a interface json.Marshaler para customizar a
-// serialização do nível de dificuldade
+// serialização do nível de dificuldade.
 func (d *Difficulty) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.String())
 }
 
 // UnmarshalJSON implementa a interface json.Unmarshaler para customizar a
-// desserialização do nível de dificuldade,
-// em caso de erro retorna ErrInvalidDifficulty
+// desserialização do nível de dificuldade.
+//
+// Em caso de erro retorna ErrInvalidDifficulty.
 func (d *Difficulty) UnmarshalJSON(data []byte) error {
 	var difficultyStr string
 	if err := json.Unmarshal(data, &difficultyStr); err != nil {
-		return fmt.Errorf("[UnmarshalJSON] ERROR unmarshaling difficulty: %w", err)
+		return fmt.Errorf("[model.UnmarshalJSON] ERROR: %w", err)
 	}
 
 	var difficulty Difficulty
@@ -78,25 +80,25 @@ func (d *Difficulty) UnmarshalJSON(data []byte) error {
 	case "Very Hard":
 		difficulty = VeryHard
 	default:
-		return fmt.Errorf(
-			"[UnmarshalJSON] ERROR invalid difficulty string(%s): %w",
-			difficultyStr,
-			ErrInvalidDifficulty,
-		)
+		return ErrInvalidDifficulty
 	}
 
 	*d = difficulty
 	return nil
 }
 
-// ToInt converte o nível de dificuldade para um valor inteiro
+// ToInt converte o nível de dificuldade para um valor inteiro.
 func (d Difficulty) ToInt() int {
 	return int(d)
 }
 
-// FromInt converte um valor inteiro para o nível de dificuldade correspondente,
-// em caso de erro retorna ErrInvalidDifficulty
+// FromInt converte um valor inteiro para o nível de dificuldade correspondente.
+//
+// Em caso de erro retorna ErrInvalidDifficulty.
 func FromInt(value int) (Difficulty, error) {
 	difficulty := Difficulty(value)
-	return ValidateDifficulty(difficulty)
+	if err := validateDifficulty(difficulty); err != nil {
+		return 0, err
+	}
+	return difficulty, nil
 }
