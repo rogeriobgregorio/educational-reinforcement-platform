@@ -1,7 +1,6 @@
 package model
 
 import (
-	"educational-reinforcement-platform/pkg"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,15 +8,10 @@ import (
 	"time"
 )
 
+// Erros específicos do modelo Question
 var (
-	ErrEmptyQuestionContent   = errors.New("question content cannot be empty")
-	ErrQuantityOptions        = errors.New("number of options incompatible with the difficulty")
-	ErrInvalidCorrectOptions  = errors.New("there must be exactly one correct option")
-	ErrEmptySubjectID         = errors.New("subject ID cannot be empty")
-	ErrAddOptionExceedsLimit  = errors.New("cannot add more options than the difficulty allows")
-	ErrRemoveOptionBelowLimit = errors.New("cannot have fewer options than the difficulty requires")
-	ErrOptionNotFound         = errors.New("option not found")
-	ErrChangeDifficulty       = errors.New("current options exceed new difficulty")
+	ErrQuestionIDEmpty      = errors.New("question ID cannot be empty")
+	ErrEmptyQuestionContent = errors.New("question content cannot be empty")
 )
 
 // Question representa uma pergunta
@@ -31,77 +25,76 @@ type Question struct {
 	UpdatedAt  time.Time  `json:"updatedAt"`
 }
 
-// NewQuestion cria uma nova instância de Question,
-// em caso de erro retorna o erro correspondente
-func NewQuestion(subjectID, content string, difficulty Difficulty, options []Option) (*Question, error) {
-	const newQuestionErrorFmt = "[NewQuestion] ERROR: %w"
+// NewQuestion cria uma nova instância de Question.
 
-	validId, err := pkg.GenerateUUID()
-	if err != nil {
-		return nil, fmt.Errorf(newQuestionErrorFmt, err)
-	}
-
-	validSubjectID, err := ValidateSubjectID(subjectID)
-	if err != nil {
-		return nil, fmt.Errorf(newQuestionErrorFmt, err)
-	}
-
-	validContent, err := ValidateQuestionContent(content)
-	if err != nil {
-		return nil, fmt.Errorf(newQuestionErrorFmt, err)
-	}
-
-	validDifficulty, err := ValidateDifficulty(difficulty)
-	if err != nil {
-		return nil, fmt.Errorf(newQuestionErrorFmt, err)
-	}
-
-	validOptions, err := ValidateOptions(options, validDifficulty)
-	if err != nil {
-		return nil, fmt.Errorf(newQuestionErrorFmt, err)
-	}
-
+// Em caso de erro retorna ValidationError.
+func NewQuestion(id, subjectID, content string, difficulty Difficulty, options []Option) (*Question, error) {
 	now := time.Now()
-
-	return &Question{
-		ID:         validId,
-		SubjectID:  validSubjectID,
-		Content:    validContent,
-		Options:    validOptions,
-		Difficulty: validDifficulty,
+	question := &Question{
+		ID:         id,
+		SubjectID:  subjectID,
+		Content:    content,
+		Options:    options,
+		Difficulty: difficulty,
 		CreatedAt:  now,
 		UpdatedAt:  now,
-	}, nil
-}
-
-// ValidateSubjectID verifica se o ID do assunto é válido
-// em caso de erro retorna ErrEmptySubjectID
-func ValidateSubjectID(subjectID string) (string, error) {
-	if len(strings.TrimSpace(subjectID)) == 0 {
-		return "", fmt.Errorf("[ValidateSubjectID] ERROR: %w", ErrEmptySubjectID)
 	}
-	return subjectID, nil
-}
 
-// ValidateQuestionContent verifica se o conteúdo da pergunta é válido
-// em caso de erro retorna ErrEmptyQuestionContent
-func ValidateQuestionContent(content string) (string, error) {
-	if len(strings.TrimSpace(content)) == 0 {
-		return "", fmt.Errorf("[ValidateQuestionContent] ERROR: %w", ErrEmptyQuestionContent)
+	if err := question.Validate(); err != nil {
+		return nil, err
 	}
-	return content, nil
+	return question, nil
 }
 
-// ValidateOptions verifica se a lista de opções é válida
-// em caso de erro retorna ErrQuantityOptions ou ErrInvalidCorrectOptions
-func ValidateOptions(options []Option, difficulty Difficulty) ([]Option, error) {
+// Validate verifica se os dados da pergunta são válidos.
+//
+// Em caso de erro retorna ValidationError que contém todos os erros encontrados
+func (q *Question) Validate() error {
+	ve := &ValidationError{}
+
+	if strings.TrimSpace(q.ID) == "" {
+		ve.Add(ErrQuestionIDEmpty)
+	}
+
+	if strings.TrimSpace(q.SubjectID) == "" {
+		ve.Add(ErrSubjectIDEmpty)
+	}
+
+	if err := validateQuestionContent(q.Content); err != nil {
+		ve.Add(err)
+	}
+
+	if err := validateDifficulty(q.Difficulty); err != nil {
+		ve.Add(err)
+	}
+
+	if err := validateOptions(q.Options, q.Difficulty); err != nil {
+		ve.Add(err)
+	}
+
+	if ve.HasErrors() {
+		return ve
+	}
+
+	return nil
+}
+
+// validateQuestionContent verifica se o conteúdo da pergunta é válido.
+//
+// Em caso de erro retorna ErrEmptyQuestionContent.
+func validateQuestionContent(content string) error {
+	if strings.TrimSpace(content) == "" {
+		return ErrEmptyQuestionContent
+	}
+	return nil
+}
+
+// validateOptions verifica se a lista de opções é válida.
+//
+// Em caso de erro retorna: ErrQuantityOptions ou ErrInvalidCorrectOptions
+func validateOptions(options []Option, difficulty Difficulty) error {
 	if len(options) < int(VeryEasy) || len(options) > int(difficulty) {
-		return nil, fmt.Errorf(
-			"[ValidateOptions] ERROR: %w (current=%d, max=%d)",
-			ErrQuantityOptions,
-			len(options),
-			difficulty,
-		)
+		return ErrQuantityOptions
 	}
 
 	correctCount := 0
@@ -112,74 +105,64 @@ func ValidateOptions(options []Option, difficulty Difficulty) ([]Option, error) 
 	}
 
 	if correctCount != 1 {
-		return nil, fmt.Errorf("[ValidateOptions] ERROR: %w", ErrInvalidCorrectOptions)
+		return ErrInvalidCorrectOptions
 	}
 
-	return options, nil
+	return nil
 }
 
-// UpdateContent altera o conteúdo da pergunta,
-// em caso de erro retorna ErrEmptyQuestionContent
+// UpdateContent altera o conteúdo da pergunta.
+
+// Em caso de erro retorna ErrEmptyQuestionContent.
 func (q *Question) UpdateContent(newContent string) error {
-	validContent, err := ValidateQuestionContent(newContent)
-	if err != nil {
-		return fmt.Errorf("[UpdateContent] ERROR: %w", err)
+	if err := validateQuestionContent(newContent); err != nil {
+		return err
 	}
-	q.Content = validContent
+	q.Content = newContent
 	q.UpdatedAt = time.Now()
 	return nil
 }
 
-// UpdateDifficulty altera a dificuldade da pergunta,
-// em caso de erro retorna ErrChangeDifficulty
+// UpdateDifficulty altera a dificuldade da pergunta.
+//
+// Em caso de erro retorna ErrChangeDifficulty.
 func (q *Question) UpdateDifficulty(newDifficulty Difficulty) error {
-	validDifficulty, err := ValidateDifficulty(newDifficulty)
-	if err != nil {
-		return fmt.Errorf("[UpdateDifficulty] ERROR: %w", err)
+	if err := validateDifficulty(newDifficulty); err != nil {
+		return err
 	}
 
-	if len(q.Options) > int(validDifficulty) {
-		return fmt.Errorf(
-			"[UpdateDifficulty] ERROR: %w (current options=%d, new difficulty=%d)",
-			ErrChangeDifficulty,
-			len(q.Options),
-			validDifficulty,
-		)
+	if len(q.Options) > int(newDifficulty) {
+		return ErrChangeDifficulty
 	}
 
-	q.Difficulty = validDifficulty
+	q.Difficulty = newDifficulty
 	q.UpdatedAt = time.Now()
 	return nil
 }
 
-// UpdateOptions altera as opções da pergunta,
-// em caso de erro retorna ErrQuantityOptions ou ErrInvalidCorrectOptions
+// UpdateOptions altera as opções da pergunta.
+//
+// Em caso de erro retorna ErrQuantityOptions ou ErrInvalidCorrectOptions.
 func (q *Question) UpdateOptions(newOptions []Option) error {
-	validOptions, err := ValidateOptions(newOptions, q.Difficulty)
-	if err != nil {
-		return fmt.Errorf("[UpdateOptions] ERROR: %w", err)
+	if err := validateOptions(newOptions, q.Difficulty); err != nil {
+		return err
 	}
-	q.Options = validOptions
+	q.Options = newOptions
 	q.UpdatedAt = time.Now()
 	return nil
 }
 
-// AddOption adiciona uma nova opção à pergunta,
-// em caso de erro retorna ErrAddOptionExceedsLimit,
-// ErrQuantityOptions ou ErrInvalidCorrectOptions
+// AddOption adiciona uma nova opção à pergunta.
+//
+// Em caso de erro retorna: ErrAddOptionExceedsLimit, ErrQuantityOptions ou ErrInvalidCorrectOptions.
 func (q *Question) AddOption(option Option) error {
 	if len(q.Options) >= int(q.Difficulty) {
-		return fmt.Errorf(
-			"[AddOption] ERROR: %w (current=%d, max=%d)",
-			ErrAddOptionExceedsLimit,
-			len(q.Options), q.Difficulty,
-		)
+		return ErrAddOptionExceedsLimit
 	}
 
 	newOptions := append(q.Options, option)
-	_, err := ValidateOptions(newOptions, q.Difficulty)
-	if err != nil {
-		return fmt.Errorf("[AddOption] ERROR: %w", err)
+	if err := validateOptions(newOptions, q.Difficulty); err != nil {
+		return err
 	}
 
 	q.Options = newOptions
@@ -187,16 +170,12 @@ func (q *Question) AddOption(option Option) error {
 	return nil
 }
 
-// RemoveOption remove uma opção da pergunta pelo ID,
-// em caso de erro retorna ErrRemoveOptionBelowLimit ou ErrOptionNotFound
+// RemoveOption remove uma opção da pergunta pelo ID.
+//
+// Em caso de erro retorna ErrRemoveOptionBelowLimit ou ErrOptionNotFound.
 func (q *Question) RemoveOption(optionID string) error {
 	if len(q.Options) <= int(VeryEasy) {
-		return fmt.Errorf(
-			"[RemoveOption] ERROR: %w (current=%d, min=%d)",
-			ErrRemoveOptionBelowLimit,
-			len(q.Options),
-			VeryEasy,
-		)
+		return ErrRemoveOptionBelowLimit
 	}
 
 	var newOptions []Option
@@ -211,16 +190,11 @@ func (q *Question) RemoveOption(optionID string) error {
 	}
 
 	if !found {
-		return fmt.Errorf(
-			"[RemoveOption] ERROR Invalid option ID(%s): %w",
-			optionID,
-			ErrOptionNotFound,
-		)
+		return ErrOptionNotFound
 	}
 
-	_, err := ValidateOptions(newOptions, q.Difficulty)
-	if err != nil {
-		return fmt.Errorf("[RemoveOption] ERROR: %w", err)
+	if err := validateOptions(newOptions, q.Difficulty); err != nil {
+		return err
 	}
 
 	q.Options = newOptions
@@ -228,8 +202,9 @@ func (q *Question) RemoveOption(optionID string) error {
 	return nil
 }
 
-// SetCorrectOption define qual opção da pergunta deve ser marcada como correta,
-// em caso de erro retorna ErrOptionNotFound, ErrQuantityOptions ou ErrInvalidCorrectOptions
+// SetCorrectOption define qual opção da pergunta deve ser marcada como correta.
+//
+// Em caso de erro retorna: ErrOptionNotFound, ErrQuantityOptions ou ErrInvalidCorrectOptions.
 func (q *Question) SetCorrectOption(optionID string) error {
 	found := false
 	now := time.Now()
@@ -246,16 +221,11 @@ func (q *Question) SetCorrectOption(optionID string) error {
 	}
 
 	if !found {
-		return fmt.Errorf(
-			"[SetCorrectOption] ERROR Invalid option ID(%s): %w",
-			optionID,
-			ErrOptionNotFound,
-		)
+		return ErrOptionNotFound
 	}
 
-	_, err := ValidateOptions(q.Options, q.Difficulty)
-	if err != nil {
-		return fmt.Errorf("[SetCorrectOption] ERROR: %w", err)
+	if err := validateOptions(q.Options, q.Difficulty); err != nil {
+		return err
 	}
 
 	q.UpdatedAt = now
@@ -266,7 +236,7 @@ func (q *Question) SetCorrectOption(optionID string) error {
 func (q *Question) String() string {
 	data, err := json.MarshalIndent(q, "", "  ")
 	if err != nil {
-		return fmt.Sprintf("[Question.String] ERROR: %v", err)
+		return fmt.Sprintf("[model.Question.String] ERROR: %v", err)
 	}
 	return string(data)
 }

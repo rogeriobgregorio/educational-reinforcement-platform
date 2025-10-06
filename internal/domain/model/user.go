@@ -1,7 +1,6 @@
 package model
 
 import (
-	"educational-reinforcement-platform/pkg"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,16 +9,24 @@ import (
 	"time"
 )
 
+// Erros específicos do modelo User
 var (
-	ErrInvalidName  = errors.New("name cannot be less than 3 characters")
-	ErrInvalidRole  = errors.New("invalid role")
-	ErrEmptyRole    = errors.New("role cannot be empty")
-	ErrInvalidEmail = errors.New("invalid email format")
-	ErrEmptyEmail   = errors.New("email cannot be empty")
-	ErrUserIDEmpty  = errors.New("user ID cannot be empty")
+	ErrInvalidName   = errors.New("user name cannot be less than 3 characters")
+	ErrInvalidRole   = errors.New("invalid role")
+	ErrEmptyRole     = errors.New("role cannot be empty")
+	ErrInvalidEmail  = errors.New("invalid email format")
+	ErrEmptyPassword = errors.New("password hash cannot be empty")
+	ErrEmptyEmail    = errors.New("email cannot be empty")
+	ErrUserIDEmpty   = errors.New("user ID cannot be empty")
 )
 
-// Role define os papéis possíveis para um usuário
+// Pattern para validação de email
+const emailRegexPattern = `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+
+// Regex compilada para validação de email
+var emailRegex = regexp.MustCompile(emailRegexPattern)
+
+// Role define os papéis possíveis para um usuário.
 type Role string
 
 const (
@@ -27,7 +34,15 @@ const (
 	RoleUser  Role = "USER"
 )
 
-// User representa um usuário do sistema
+// Status define os status possíveis para um usuário.
+type Status string
+
+const (
+	StatusActive   Status = "ACTIVE"
+	StatusInactive Status = "INACTIVE"
+)
+
+// User representa um usuário do sistema.
 type User struct {
 	ID           string     `json:"id"`
 	Name         string     `json:"name"`
@@ -35,161 +50,154 @@ type User struct {
 	PasswordHash string     `json:"-"`
 	Role         Role       `json:"role"`
 	Difficulty   Difficulty `json:"difficulty"`
-	Active       bool       `json:"active"`
+	Status       Status     `json:"status"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	UpdatedAt    time.Time  `json:"updatedAt"`
 }
 
-// NewUser cria um novo usuário com os dados fornecidos,
-// em caso de erro retorna o erro correspondente
-func NewUser(name, email, passwordHash string, role Role, difficulty Difficulty) (*User, error) {
-	const newUserErrorFmt = "[NewUser] ERROR: %w"
-
-	validId, err := pkg.GenerateUUID()
-	if err != nil {
-		return nil, fmt.Errorf(newUserErrorFmt, err)
-	}
-
-	validName, err := ValidateUserName(name)
-	if err != nil {
-		return nil, fmt.Errorf(newUserErrorFmt, err)
-	}
-
-	validEmail, err := ValidateEmail(email)
-	if err != nil {
-		return nil, fmt.Errorf(newUserErrorFmt, err)
-	}
-
-	validRole, err := ValidateRole(string(role))
-	if err != nil {
-		return nil, fmt.Errorf(newUserErrorFmt, err)
-	}
-
-	validDifficulty, err := ValidateDifficulty(difficulty)
-	if err != nil {
-		return nil, fmt.Errorf(newUserErrorFmt, err)
-	}
-
+// NewUser cria uma nova instância de User.
+//
+// Em caso de erro retorna ValidationError.
+func NewUser(id, name, email, passwordHash string, role Role, difficulty Difficulty) (*User, error) {
 	now := time.Now()
-
-	return &User{
-		ID:           validId,
-		Name:         validName,
-		Email:        validEmail,
+	user := &User{
+		ID:           id,
+		Name:         name,
+		Email:        email,
 		PasswordHash: passwordHash,
-		Role:         validRole,
-		Difficulty:   validDifficulty,
-		Active:       true,
+		Role:         role,
+		Difficulty:   difficulty,
+		Status:       StatusActive,
 		CreatedAt:    now,
 		UpdatedAt:    now,
-	}, nil
+	}
+
+	if err := user.Validate(); err != nil {
+		return nil, err
+	}
+	return user, nil
 }
 
-// ValidateUserName verifica se o nome é válido,
-// em caso de erro retorna ErrInvalidName
-func ValidateUserName(name string) (string, error) {
+// Validate verifica se os dados do usuário são válidos.
+//
+// Em caso de erro retorna ValidationError que contém todos os erros encontrados.
+func (u *User) Validate() error {
+	ve := &ValidationError{}
+
+	if strings.TrimSpace(u.ID) == "" {
+		ve.Add(ErrUserIDEmpty)
+	}
+
+	if err := validateUserName(u.Name); err != nil {
+		ve.Add(err)
+	}
+
+	if err := validateEmail(u.Email); err != nil {
+		ve.Add(err)
+	}
+
+	if err := validateRole(u.Role); err != nil {
+		ve.Add(err)
+	}
+
+	if err := validateDifficulty(u.Difficulty); err != nil {
+		ve.Add(err)
+	}
+
+	if strings.TrimSpace(u.PasswordHash) == "" {
+		ve.Add(ErrEmptyPassword)
+	}
+	if ve.HasErrors() {
+		return ve
+	}
+
+	return nil
+}
+
+// validateUserName verifica se o nome é válido.
+//
+// Em caso de erro retorna ErrInvalidName.
+func validateUserName(name string) error {
 	if len(strings.TrimSpace(name)) < 3 {
-		return "", fmt.Errorf(
-			"[ValidateUserName] ERROR: invalid name(%s), %w",
-			name,
-			ErrInvalidName,
-		)
+		return ErrInvalidName
 	}
-	return name, nil
+	return nil
 }
 
-// ValidateEmail verifica se o email está em um formato válido,
-// em caso de erro retorna ErrEmptyEmail ou ErrInvalidEmail
-func ValidateEmail(email string) (string, error) {
-	email = strings.TrimSpace(email)
-	email = strings.ToLower(email)
+// validateEmail verifica se o email está em um formato válido.
+//
+// Em caso de erro retorna: ErrEmptyEmail ou ErrInvalidEmail.
+func validateEmail(email string) error {
+	email = strings.ToLower(strings.TrimSpace(email))
 
-	if len(email) == 0 {
-		return "", fmt.Errorf(
-			"[ValidateEmail] ERROR: invalid email(%s), %w",
-			email,
-			ErrEmptyEmail,
-		)
+	if email == "" {
+		return ErrEmptyEmail
 	}
-
-	regexp := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-
-	if !regexp.MatchString(email) {
-		return "", fmt.Errorf(
-			"[ValidateEmail] ERROR: invalid email(%s), %w",
-			email,
-			ErrInvalidEmail,
-		)
+	if !emailRegex.MatchString(email) {
+		return ErrInvalidEmail
 	}
-	return email, nil
+	return nil
 }
 
-// ValidateRole verifica se o papel é válido,
-// em caso de erro retorna ErrInvalidRole ou ErrEmptyRole
-func ValidateRole(userRole string) (Role, error) {
-	userRole = strings.TrimSpace(strings.ToUpper(userRole))
-	if len(strings.TrimSpace(userRole)) == 0 {
-		return Role(""), fmt.Errorf(
-			"[ValidateRole] ERROR: invalid role(%s), %w",
-			userRole,
-			ErrEmptyRole,
-		)
-	}
-
-	role := Role(userRole)
-
+// ValidateRole verifica se o papel é válido.
+//
+// Em caso de erro retorna: ErrInvalidRole ou ErrEmptyRole.
+func validateRole(role Role) error {
 	switch role {
 	case RoleAdmin, RoleUser:
-		return role, nil
+		return nil
 	default:
-		return Role(""), fmt.Errorf(
-			"[ValidateRole] ERROR: invalid role(%s), %w",
-			userRole,
-			ErrInvalidRole,
-		)
+		if role == "" {
+			return ErrEmptyRole
+		}
+		return ErrInvalidRole
 	}
 }
 
-// UpdateName atualiza o nome do usuário - em caso de erro retorna ErrInvalidName
-func (u *User) UpdateName(name string) error {
-	validName, err := ValidateUserName(name)
-	if err != nil {
-		return fmt.Errorf("[UpdateName] ERROR: %w", err)
+// UpdateName atualiza o nome do usuário.
+//
+// Em caso de erro retorna ErrInvalidName.
+func (u *User) UpdateName(newName string) error {
+	if err := validateUserName(newName); err != nil {
+		return err
 	}
-	u.Name = validName
+	u.Name = strings.TrimSpace(newName)
 	u.UpdatedAt = time.Now()
 	return nil
 }
 
-// UpdateEmail atualiza o email do usuário - em caso de erro retorna ErrEmptyEmail ou ErrInvalidEmail
-func (u *User) UpdateEmail(email string) error {
-	validEmail, err := ValidateEmail(email)
-	if err != nil {
-		return fmt.Errorf("[UpdateEmail] ERROR: %w", err)
+// UpdateEmail atualiza o email do usuário.
+//
+// Em caso de erro retorna: ErrEmptyEmail ou ErrInvalidEmail.
+func (u *User) UpdateEmail(newEmail string) error {
+	if err := validateEmail(newEmail); err != nil {
+		return err
 	}
-	u.Email = validEmail
+	u.Email = strings.ToLower(strings.TrimSpace(newEmail))
 	u.UpdatedAt = time.Now()
 	return nil
 }
 
-// UpdateRole atualiza o papel do usuário - em caso de erro retorna ErrInvalidRole ou ErrEmptyRole
+// UpdateRole atualiza o papel do usuário.
+//
+// Em caso de erro retorna: ErrInvalidRole ou ErrEmptyRole.
 func (u *User) UpdateRole(role Role) error {
-	validRole, err := ValidateRole(string(role))
-	if err != nil {
-		return fmt.Errorf("[UpdateRole] ERROR: %w", err)
+	if err := validateRole(role); err != nil {
+		return err
 	}
-	u.Role = validRole
+	u.Role = role
 	u.UpdatedAt = time.Now()
 	return nil
 }
 
-// UpdateDifficulty atualiza a dificuldade do usuário - em caso de erro retorna ErrInvalidDifficulty
+// UpdateDifficulty atualiza a dificuldade do usuário.
+//
+// Em caso de erro retorna: ErrInvalidDifficulty ou ErrEmptyDifficulty.
 func (u *User) UpdateDifficulty(difficulty Difficulty) error {
-	validDifficulty, err := ValidateDifficulty(difficulty)
-	if err != nil {
-		return fmt.Errorf("[UpdateDifficulty] ERROR: %w", err)
+	if err := validateDifficulty(difficulty); err != nil {
+		return err
 	}
-	u.Difficulty = validDifficulty
+	u.Difficulty = difficulty
 	u.UpdatedAt = time.Now()
 	return nil
 }
@@ -206,31 +214,33 @@ func (u *User) IsUser() bool {
 
 // Activate ativa o usuário
 func (u *User) Activate() {
-	u.Active = true
+	u.Status = StatusActive
 	u.UpdatedAt = time.Now()
 }
 
 // Deactivate desativa o usuário
 func (u *User) Deactivate() {
-	u.Active = false
+	u.Status = StatusInactive
 	u.UpdatedAt = time.Now()
 }
 
 // IsActive verifica se o usuário está ativo
 func (u *User) IsActive() bool {
-	return u.Active
+	return u.Status == StatusActive
 }
 
 // IsInactive verifica se o usuário está inativo
 func (u *User) IsInactive() bool {
-	return !u.Active
+	return u.Status == StatusInactive
 }
 
-// String retorna uma representação em JSON do usuário
+// String retorna uma representação em JSON do usuário.
+//
+// Em caso de erro, retorna uma string de erro.
 func (u *User) String() string {
 	data, err := json.MarshalIndent(u, "", "  ")
 	if err != nil {
-		return fmt.Sprintf("[User.String] ERROR: %v", err)
+		return fmt.Sprintf("[model.User.String] ERROR: %v", err)
 	}
 	return string(data)
 }

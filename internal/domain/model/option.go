@@ -1,7 +1,6 @@
 package model
 
 import (
-	"educational-reinforcement-platform/pkg"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,9 +8,15 @@ import (
 	"time"
 )
 
+// Erros específicos do modelo Option
 var (
-	ErrEmptyOptionContent = errors.New("option content cannot be empty")
-	ErrEmptyQuestionID    = errors.New("question ID cannot be empty")
+	ErrEmptyOptionContent     = errors.New("option content cannot be empty")
+	ErrQuantityOptions        = errors.New("number of options incompatible with the difficulty")
+	ErrInvalidCorrectOptions  = errors.New("there must be exactly one correct option")
+	ErrAddOptionExceedsLimit  = errors.New("cannot add more options than the difficulty allows")
+	ErrRemoveOptionBelowLimit = errors.New("cannot have fewer options than the difficulty requires")
+	ErrOptionNotFound         = errors.New("option not found")
+	ErrOptionIDEmpty          = errors.New("option ID cannot be empty")
 )
 
 // Option representa uma opção de resposta para uma pergunta
@@ -24,64 +29,69 @@ type Option struct {
 	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
-// NewOption cria uma nova instância de Option, 
-// em caso de erro retorna o erro correspondente
-func NewOption(questionID, content string, isCorrect bool) (*Option, error) {
-	const newOptionErrorFmt = "[NewOption] ERROR: %w"
-
-	validQuestionID, err := ValidateQuestionID(questionID)
-	if err != nil {
-		return nil, fmt.Errorf(newOptionErrorFmt, err)
-	}
-
-	validId, err := pkg.GenerateUUID()
-	if err != nil {
-		return nil, fmt.Errorf(newOptionErrorFmt, err)
-	}
-
-	validContent, err := ValidateOptionContent(content)
-	if err != nil {
-		return nil, fmt.Errorf(newOptionErrorFmt, err)
-	}
-
+// NewOption cria uma nova instância de Option.
+//
+// Em caso de erro retorna ValidationError.
+func NewOption(id, questionID, content string, isCorrect bool) (*Option, error) {
 	now := time.Now()
-
-	return &Option{
-		ID:         validId,
-		QuestionID: validQuestionID,
-		Content:    validContent,
+	option := &Option{
+		ID:         id,
+		QuestionID: questionID,
+		Content:    content,
 		IsCorrect:  isCorrect,
 		CreatedAt:  now,
 		UpdatedAt:  now,
-	}, nil
+	}
+
+	if err := option.Validate(); err != nil {
+		return nil, err
+	}
+
+	return option, nil
 }
 
-// ValidateOptionContent verifica se o conteúdo da opção é válido,
-// em caso de erro retorna ErrEmptyOptionContent
-func ValidateOptionContent(content string) (string, error) {
-	if len(strings.TrimSpace(content)) == 0 {
-		return "", fmt.Errorf("[ValidateOptionContent] ERROR: %w", ErrEmptyOptionContent)
+// Validate verifica se os dados da opção são válidos.
+//
+// Em caso de erro retorna ValidationError que contém todos os erros encontrados.
+func (o *Option) Validate() error {
+	ve := &ValidationError{}
+
+	if strings.TrimSpace(o.ID) == "" {
+		ve.Add(ErrEmptyOptionContent)
 	}
-	return content, nil
+
+	if strings.TrimSpace(o.QuestionID) == "" {
+		ve.Add(ErrQuestionIDEmpty)
+	}
+
+	if err := validateOptionContent(o.Content); err != nil {
+		ve.Add(ErrEmptyOptionContent)
+	}
+
+	if ve.HasErrors() {
+		return ve
+	}
+	return nil
 }
 
-// ValidateQuestionID verifica se o ID da pergunta é válido,
-// em caso de erro retorna ErrEmptyQuestionID
-func ValidateQuestionID(questionID string) (string, error) {
-	if len(strings.TrimSpace(questionID)) == 0 {
-		return "", fmt.Errorf("[ValidateQuestionID] ERROR: %w", ErrEmptyQuestionID)
+// validateOptionContent verifica se o conteúdo da opção é válido.
+//
+// Em caso de erro retorna ErrEmptyOptionContent.
+func validateOptionContent(content string) error {
+	if strings.TrimSpace(content) == "" {
+		return ErrEmptyOptionContent
 	}
-	return questionID, nil
+	return nil
 }
 
-// ChangeContent altera o conteúdo da opção,
-// em caso de erro retorna ErrEmptyOptionContent
-func (o *Option) ChangeContent(newContent string) error {
-	validContent, err := ValidateOptionContent(newContent)
-	if err != nil {
-		return fmt.Errorf("[ChangeContent] ERROR: %w", err)
+// UpdateContent atualiza o conteúdo da opção.
+//
+// Em caso de erro retorna ErrEmptyOptionContent.
+func (o *Option) UpdateContent(newContent string) error {
+	if err := validateOptionContent(newContent); err != nil {
+		return err
 	}
-	o.Content = validContent
+	o.Content = newContent
 	o.UpdatedAt = time.Now()
 	return nil
 }
@@ -90,7 +100,7 @@ func (o *Option) ChangeContent(newContent string) error {
 func (o *Option) String() string {
 	data, err := json.MarshalIndent(o, "", "  ")
 	if err != nil {
-		return fmt.Sprintf("[Option.String] ERROR: %v", err)
+		return fmt.Sprintf("[model.Option.String] ERROR: %v", err)
 	}
 	return string(data)
 }
