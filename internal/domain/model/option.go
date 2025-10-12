@@ -57,7 +57,7 @@ func (o *Option) Validate() error {
 	ve := &ValidationError{}
 
 	if strings.TrimSpace(o.ID) == "" {
-		ve.Add(ErrEmptyOptionContent)
+		ve.Add(ErrOptionIDEmpty)
 	}
 
 	if strings.TrimSpace(o.QuestionID) == "" {
